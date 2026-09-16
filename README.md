@@ -14,7 +14,7 @@
     --pink-500:#FF6FA0;
     --pink-700:#E24E82;
     --pink-icon:#B9637F;
-    --pearl-100:#FFFFFF;
+    --pearl-100:#ead9e0;
     --pearl-200:#F7F5F4;
     --ink-900:#2B2730;
     --ink-500:#8A8390;
@@ -142,7 +142,7 @@
     cursor:pointer;
   }
   .tab-btn.active{
-    background:#fff;
+    background:#ead9e0;
     color:var(--pink-700);
     border-color:var(--pink-100);
     box-shadow:0 2px 5px rgba(226,78,130,.15);
@@ -168,7 +168,7 @@
     padding:8px 10px;
     border-radius:9px;
     border:1.5px solid rgba(226,78,130,.22);
-    background:#fff;
+    background:#ead9e0;
     font-size:12.5px;
     color:var(--ink-900);
     outline:none;
@@ -181,7 +181,7 @@
     border:0;
     border-radius:9px;
     background:linear-gradient(160deg,var(--pink-500),var(--pink-700));
-    color:#fff;
+    color:#ead9e0;
     font-weight:800;
     font-size:12px;
     font-family:inherit;
@@ -217,7 +217,7 @@
     border:0;
     border-radius:8px;
     background:var(--pink-500);
-    color:#fff;
+    color:#ead9e0;
     font-weight:700;
     font-size:11px;
     font-family:inherit;
@@ -290,7 +290,7 @@
     position:absolute;
     left:7px; right:7px; bottom:0;
     height:40px;
-    background:#fff;
+    background:#ead9e0;
     border-radius:50% 50% 46% 46%;
     box-shadow:0 2px 6px rgba(226,78,130,.18);
   }
@@ -626,7 +626,10 @@
 (function(){
   "use strict";
 
-  var STORAGE_KEY = "pinkpod_history_v1";
+  var STORAGE_KEY = "pinkpod_history_v2";
+  // 링크를 공유해도 각 브라우저 탭마다 독립적인 플레이리스트를 사용합니다.
+  // sessionStorage는 같은 URL을 새 탭/새 창에서 열었을 때 서로 공유되지 않습니다.
+  var STORAGE = window.sessionStorage;
   var history = [];
   var currentIndex = -1;
   var player = null;
@@ -670,12 +673,12 @@
   /* ---------- storage ---------- */
   function loadHistory(){
     try{
-      var raw = localStorage.getItem(STORAGE_KEY);
+      var raw = STORAGE.getItem(STORAGE_KEY);
       history = raw ? JSON.parse(raw) : [];
     }catch(e){ history = []; }
   }
   function saveHistory(){
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(history)); }catch(e){}
+    try{ STORAGE.setItem(STORAGE_KEY, JSON.stringify(history)); }catch(e){}
   }
 
   /* ---------- tabs ---------- */
@@ -856,8 +859,8 @@
       root.setProperty('--screen-idle-a', 'var(--pink-000)');
       root.setProperty('--screen-idle-b', 'var(--pink-050)');
       root.setProperty('--theme-bg', 'linear-gradient(180deg,' + hslCss(h, s * 0.45, 94) + ',' + hslCss(h, s * 0.60, 81) + ')');
-      root.setProperty('--theme-device', 'linear-gradient(155deg,#fff 0%,' + hslCss(h, s * 0.45, 94) + ' 38%,' + hslCss(h, s * 0.55, 88) + ' 78%,' + hslCss(h, s * 0.60, 81) + ' 100%)');
-      root.setProperty('--theme-wheel', 'radial-gradient(circle at 32% 28%,#fff 0%,transparent 55%),' + colors[0]);
+      root.setProperty('--theme-device', 'linear-gradient(155deg,#ead9e0 0%,' + hslCss(h, s * 0.45, 94) + ' 38%,' + hslCss(h, s * 0.55, 88) + ' 78%,' + hslCss(h, s * 0.60, 81) + ' 100%)');
+      root.setProperty('--theme-wheel', 'radial-gradient(circle at 32% 28%,#ead9e0 0%,transparent 55%),' + colors[0]);
       root.setProperty('--theme-accent', colors[0]);
       return;
     }
@@ -876,7 +879,7 @@
     var softerGradient = makeEqualGradient(softerColors, '90deg');
 
     root.setProperty('--theme-bg', 'linear-gradient(180deg,' + softGradient + ',' + softerGradient + ')');
-    root.setProperty('--theme-device', 'linear-gradient(155deg,#fff 0%,' + softGradient + ' 45%,' + softerGradient + ' 100%)');
+    root.setProperty('--theme-device', 'linear-gradient(155deg,#ead9e0 0%,' + softGradient + ' 45%,' + softerGradient + ' 100%)');
     root.setProperty('--theme-wheel', 'radial-gradient(circle at 32% 28%,rgba(255,255,255,.92) 0%,rgba(255,255,255,0) 55%),' + mainGradient);
     root.setProperty('--theme-accent', mainGradient);
     root.setProperty('--pink-000', softColors[0]);
