@@ -14,7 +14,7 @@
     --pink-500:#FF6FA0;
     --pink-700:#E24E82;
     --pink-icon:#B9637F;
-    --pearl-100:#ead9e0;
+    --pearl-100:#FFFFFF;
     --pearl-200:#F7F5F4;
     --ink-900:#2B2730;
     --ink-500:#8A8390;
@@ -22,10 +22,6 @@
     --screen-idle-a:#FFF1F6;
     --screen-idle-b:#FBDCEA;
     --theme-transition:background-color .45s ease, border-color .45s ease, color .45s ease;
-    --theme-bg:#FFE9F3;
-    --theme-device:#FFF6FA;
-    --theme-wheel:#FFD3E7;
-    --theme-accent:#FF7A1A;
   }
 
   *{box-sizing:border-box;}
@@ -36,7 +32,9 @@
     min-height:100%;
     font-family:'Apple SD Gothic Neo','Pretendard','Noto Sans KR',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;
     color:var(--ink-900);
-    background:var(--theme-bg);
+    background:
+      radial-gradient(120% 90% at 50% -10%, var(--pink-050) 0%, transparent 60%),
+      linear-gradient(180deg, var(--pink-050) 0%, var(--pink-100) 40%, var(--pink-200) 100%);
     -webkit-tap-highlight-color:transparent;
     transition:var(--theme-transition);
   }
@@ -60,7 +58,8 @@
   .device{
     position:relative;
     width:100%;
-    background:var(--theme-device);
+    background:
+      linear-gradient(155deg, var(--pearl-100) 0%, var(--pink-050) 38%, var(--pink-100) 78%, var(--pink-200) 100%);
     border-radius:34px;
     padding:16px 16px 22px;
     box-shadow:
@@ -142,7 +141,7 @@
     cursor:pointer;
   }
   .tab-btn.active{
-    background:#ead9e0;
+    background:#fff;
     color:var(--pink-700);
     border-color:var(--pink-100);
     box-shadow:0 2px 5px rgba(226,78,130,.15);
@@ -168,7 +167,7 @@
     padding:8px 10px;
     border-radius:9px;
     border:1.5px solid rgba(226,78,130,.22);
-    background:#ead9e0;
+    background:#fff;
     font-size:12.5px;
     color:var(--ink-900);
     outline:none;
@@ -181,7 +180,7 @@
     border:0;
     border-radius:9px;
     background:linear-gradient(160deg,var(--pink-500),var(--pink-700));
-    color:#ead9e0;
+    color:#fff;
     font-weight:800;
     font-size:12px;
     font-family:inherit;
@@ -217,7 +216,7 @@
     border:0;
     border-radius:8px;
     background:var(--pink-500);
-    color:#ead9e0;
+    color:#fff;
     font-weight:700;
     font-size:11px;
     font-family:inherit;
@@ -290,7 +289,7 @@
     position:absolute;
     left:7px; right:7px; bottom:0;
     height:40px;
-    background:#ead9e0;
+    background:#fff;
     border-radius:50% 50% 46% 46%;
     box-shadow:0 2px 6px rgba(226,78,130,.18);
   }
@@ -475,7 +474,7 @@
     width:clamp(180px,52vw,220px);
     aspect-ratio:1/1;
     border-radius:50%;
-    background:var(--theme-wheel);
+    background:radial-gradient(circle at 32% 28%, var(--pearl-100), var(--pink-100) 55%, var(--pink-200) 100%);
     box-shadow:
       0 10px 22px -10px rgba(226,78,130,.4),
       0 1px 0 rgba(255,255,255,.8) inset;
@@ -626,10 +625,7 @@
 (function(){
   "use strict";
 
-  var STORAGE_KEY = "pinkpod_history_v2";
-  // 링크를 공유해도 각 브라우저 탭마다 독립적인 플레이리스트를 사용합니다.
-  // sessionStorage는 같은 URL을 새 탭/새 창에서 열었을 때 서로 공유되지 않습니다.
-  var STORAGE = window.sessionStorage;
+  var STORAGE_KEY = "pinkpod_history_v1";
   var history = [];
   var currentIndex = -1;
   var player = null;
@@ -673,12 +669,12 @@
   /* ---------- storage ---------- */
   function loadHistory(){
     try{
-      var raw = STORAGE.getItem(STORAGE_KEY);
+      var raw = localStorage.getItem(STORAGE_KEY);
       history = raw ? JSON.parse(raw) : [];
     }catch(e){ history = []; }
   }
   function saveHistory(){
-    try{ STORAGE.setItem(STORAGE_KEY, JSON.stringify(history)); }catch(e){}
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(history)); }catch(e){}
   }
 
   /* ---------- tabs ---------- */
@@ -820,127 +816,38 @@
   function clampNum(v, min, max){ return Math.min(Math.max(v, min), max); }
   function hslCss(h, s, l){ return 'hsl(' + h.toFixed(1) + ',' + clampNum(s,0,100).toFixed(1) + '%,' + clampNum(l,0,100).toFixed(1) + '%)'; }
 
-  function makeEqualGradient(colors, direction){
-    if(!colors || colors.length === 0) return null;
-    if(colors.length === 1) return colors[0];
-    var step = 100 / colors.length;
-    var stops = [];
-    colors.forEach(function(color, i){
-      var a = (i * step).toFixed(3) + '%';
-      var b = ((i + 1) * step).toFixed(3) + '%';
-      stops.push(color + ' ' + a, color + ' ' + b);
-    });
-    return 'linear-gradient(' + (direction || '90deg') + ',' + stops.join(',') + ')';
-  }
-
-  function applyThemeColors(hexList){
-    if(!hexList || hexList.length === 0){
-      resetTheme();
-      return;
-    }
-
-    var colors = hexList.filter(Boolean);
-    if(colors.length === 1){
-      var hsl = hexToHsl(colors[0]);
-      var h = hsl.h, s = hsl.s, l = hsl.l;
-      var root = document.documentElement.style;
-      root.setProperty('--pink-000', hslCss(h, s * 0.35, 97));
-      root.setProperty('--pink-050', hslCss(h, s * 0.45, 94));
-      root.setProperty('--pink-100', hslCss(h, s * 0.55, 88));
-      root.setProperty('--pink-200', hslCss(h, s * 0.60, 81));
-      root.setProperty('--pink-300', hslCss(h, s * 0.65, 73));
-      root.setProperty('--pink-500', colors[0]);
-      var l700 = clampNum(l * 0.55, 14, 46);
-      var s700 = Math.max(s, 45);
-      root.setProperty('--pink-700', hslCss(h, s700, l700));
-      var lIcon = clampNum(l, 42, 58);
-      var sIcon = clampNum(s * 0.55, 25, 70);
-      root.setProperty('--pink-icon', hslCss(h, sIcon, lIcon));
-      root.setProperty('--screen-idle-a', 'var(--pink-000)');
-      root.setProperty('--screen-idle-b', 'var(--pink-050)');
-      root.setProperty('--theme-bg', 'linear-gradient(180deg,' + hslCss(h, s * 0.45, 94) + ',' + hslCss(h, s * 0.60, 81) + ')');
-      root.setProperty('--theme-device', 'linear-gradient(155deg,#ead9e0 0%,' + hslCss(h, s * 0.45, 94) + ' 38%,' + hslCss(h, s * 0.55, 88) + ' 78%,' + hslCss(h, s * 0.60, 81) + ' 100%)');
-      root.setProperty('--theme-wheel', 'radial-gradient(circle at 32% 28%,#ead9e0 0%,transparent 55%),' + colors[0]);
-      root.setProperty('--theme-accent', colors[0]);
-      return;
-    }
-
+  function applyThemeColor(hex){
+    var hsl = hexToHsl(hex);
+    var h = hsl.h, s = hsl.s, l = hsl.l;
     var root = document.documentElement.style;
-    var mainGradient = makeEqualGradient(colors, '90deg');
-    var softColors = colors.map(function(c){
-      var x = hexToHsl(c);
-      return hslCss(x.h, x.s * 0.45, 94);
-    });
-    var softGradient = makeEqualGradient(softColors, '90deg');
-    var softerColors = colors.map(function(c){
-      var x = hexToHsl(c);
-      return hslCss(x.h, x.s * 0.55, 88);
-    });
-    var softerGradient = makeEqualGradient(softerColors, '90deg');
-
-    root.setProperty('--theme-bg', 'linear-gradient(180deg,' + softGradient + ',' + softerGradient + ')');
-    root.setProperty('--theme-device', 'linear-gradient(155deg,#ead9e0 0%,' + softGradient + ' 45%,' + softerGradient + ' 100%)');
-    root.setProperty('--theme-wheel', 'radial-gradient(circle at 32% 28%,rgba(255,255,255,.92) 0%,rgba(255,255,255,0) 55%),' + mainGradient);
-    root.setProperty('--theme-accent', mainGradient);
-    root.setProperty('--pink-000', softColors[0]);
-    root.setProperty('--pink-050', softColors[0]);
-    root.setProperty('--pink-100', softerColors[0]);
-    root.setProperty('--pink-200', softerColors[0]);
-    root.setProperty('--pink-300', mainGradient);
-    root.setProperty('--pink-500', mainGradient);
-    root.setProperty('--pink-700', colors[0]);
-    root.setProperty('--pink-icon', colors[0]);
-    root.setProperty('--screen-idle-a', softGradient);
-    root.setProperty('--screen-idle-b', softerGradient);
-  }
-
-  function canonicalizeArtist(artist){
-    var raw = (artist || '').trim();
-    if(!raw) return '';
-
-    var parts = raw
-      .replace(/\s*(?:feat\.?|ft\.?)\s*/gi, ' & ')
-      .replace(/\s*(?:with|and)\s*/gi, ' & ')
-      .replace(/\s*(?:,|&|\/|\+|×|[Xx])\s*/g, ' & ')
-      .replace(/\s+(?:와|과)\s+/g, ' & ')
-      .split(/\s*&\s*/)
-      .map(function(x){ return x.trim(); })
-      .filter(Boolean);
-
-    var result = [];
-    parts.forEach(function(part){
-      var keys = detectCharacters(part);
-      if(keys.length === 1){
-        var canonical = {
-          nino:'니노', koyo:'코요', oto:'오토', iro:'이로', robo:'로보'
-        }[keys[0]];
-        if(canonical && result.indexOf(canonical) === -1) result.push(canonical);
-      } else if(keys.length > 1){
-        keys.forEach(function(key){
-          var canonical2 = {nino:'니노',koyo:'코요',oto:'오토',iro:'이로',robo:'로보'}[key];
-          if(canonical2 && result.indexOf(canonical2) === -1) result.push(canonical2);
-        });
-      } else if(result.indexOf(part) === -1){
-        result.push(part);
-      }
-    });
-    return result.join(' & ');
+    root.setProperty('--pink-000', hslCss(h, s * 0.35, 97));
+    root.setProperty('--pink-050', hslCss(h, s * 0.45, 94));
+    root.setProperty('--pink-100', hslCss(h, s * 0.55, 88));
+    root.setProperty('--pink-200', hslCss(h, s * 0.60, 81));
+    root.setProperty('--pink-300', hslCss(h, s * 0.65, 73));
+    root.setProperty('--pink-500', hex);
+    var l700 = clampNum(l * 0.55, 14, 46);
+    var s700 = Math.max(s, 45);
+    root.setProperty('--pink-700', hslCss(h, s700, l700));
+    var lIcon = clampNum(l, 42, 58);
+    var sIcon = clampNum(s * 0.55, 25, 70);
+    root.setProperty('--pink-icon', hslCss(h, sIcon, lIcon));
+    root.setProperty('--screen-idle-a', 'var(--pink-000)');
+    root.setProperty('--screen-idle-b', 'var(--pink-050)');
   }
 
   function resetTheme(){
     var root = document.documentElement.style;
     THEME_VARS.forEach(function(v){ root.removeProperty(v); });
-    root.removeProperty('--theme-bg');
-    root.removeProperty('--theme-device');
-    root.removeProperty('--theme-wheel');
-    root.removeProperty('--theme-accent');
   }
 
   function updateThemeForArtist(artist){
     var keys = detectCharacters(artist);
     if(keys.length > 0){
       var colors = keys.map(function(k){ return CHAR_COLORS[k]; });
-      applyThemeColors(colors);
+      var blended = blendHexColors(colors);
+      if(blended) applyThemeColor(blended);
+      else resetTheme();
     } else {
       resetTheme();
     }
@@ -1016,7 +923,7 @@
     if(dashIdx > -1){
       var left = title.slice(0, dashIdx).trim();
       var right = title.slice(dashIdx + 3).trim();
-      var sepMatch = left.match(/^(.{1,40}?)\s*(,|&|[Xx]|×|와|과)\s*(.{1,40})$/);
+      var sepMatch = left.match(/^(.{1,40}?)\s*(,|&|[Xx]|×)\s*(.{1,40})$/);
       if(sepMatch && right){
         var a1 = sepMatch[1].trim();
         var a2 = sepMatch[3].trim();
@@ -1038,7 +945,7 @@
 
     var collab = extractCollabArtist(title, artist);
     title = collab.title || title;
-    artist = canonicalizeArtist(collab.artist || artist);
+    artist = collab.artist || artist;
 
     return {
       title: title || rawTitle || '제목 없음',
@@ -1083,7 +990,7 @@
   el.manualConfirm.addEventListener('click', function(){
     if(!pendingEntry) return;
     var title = el.manualTitle.value.trim() || '제목 없음';
-    var artist = canonicalizeArtist(el.manualArtist.value.trim()) || '아티스트 미상';
+    var artist = el.manualArtist.value.trim() || '아티스트 미상';
     addEntry(pendingEntry.id, title, artist);
     pendingEntry = null;
     resetForm();
@@ -1102,7 +1009,7 @@
     var entry = {
       id: id,
       title: title,
-      artist: canonicalizeArtist(artist) || artist,
+      artist: artist,
       thumb: 'https://img.youtube.com/vi/' + id + '/mqdefault.jpg',
       addedAt: new Date().toISOString(),
       duration: null
