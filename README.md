@@ -1,4 +1,3 @@
-# playlistskoshi
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -566,7 +565,7 @@
 
         <div class="screen-input">
           <form class="screen-input-form" id="addForm">
-            <input type="url" id="urlInput" placeholder="유튜브 링크 붙여넣기" required>
+            <input type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" id="urlInput" placeholder="유튜브 링크 붙여넣기" required>
             <button type="submit" id="addBtn">추가</button>
           </form>
           <div class="screen-form-msg" id="formMsg"></div>
@@ -691,22 +690,38 @@
 
   /* ---------- helpers ---------- */
   function extractId(raw){
-    var url = (raw || '').trim();
+    var input = (raw || '').trim();
+    if(!input) return null;
+
+    // 링크 앞뒤에 다른 텍스트가 섞여 붙여넣어진 경우, 그 안에서 URL만 뽑아낸다.
+    var urlMatch = input.match(/https?:\/\/[^\s"'<>]+/i);
+    var candidate = urlMatch ? urlMatch[0] : input;
+
+    // "www.youtube.com/..."처럼 스킴(https://)이 빠진 채로 붙여넣은 경우 보정.
+    if(!/^https?:\/\//i.test(candidate) && /^(www\.|m\.|music\.)?youtu(\.be|be\.com)/i.test(candidate)){
+      candidate = 'https://' + candidate;
+    }
+
     try{
-      var u = new URL(url);
-      var host = u.hostname.replace('www.','');
+      var u = new URL(candidate);
+      var host = u.hostname.toLowerCase().replace(/^(www|m|music)\./, '');
       if(host === 'youtu.be'){
         var seg = u.pathname.split('/').filter(Boolean)[0];
         if(seg) return seg;
       }
-      if(u.searchParams.get('v')) return u.searchParams.get('v');
-      var m = u.pathname.match(/\/(embed|shorts|live)\/([^\/?]+)/);
-      if(m) return m[2];
-    }catch(e){ /* not a full URL, try regex fallback below */ }
-    var m2 = url.match(/[?&]v=([^&]+)/) ||
-              url.match(/youtu\.be\/([^?&]+)/) ||
-              url.match(/shorts\/([^?&]+)/) ||
-              url.match(/embed\/([^?&]+)/);
+      if(host === 'youtube.com' || host === 'youtube-nocookie.com'){
+        if(u.searchParams.get('v')) return u.searchParams.get('v');
+        var m = u.pathname.match(/\/(embed|shorts|live)\/([^\/?]+)/);
+        if(m) return m[2];
+      }
+    }catch(e){ /* URL로 파싱 안 되면 아래 정규식으로 재시도 */ }
+
+    // 마지막 수단: 문자열 어디에 있든 흔한 패턴으로 직접 찾아본다.
+    var m2 = candidate.match(/[?&]v=([A-Za-z0-9_-]{6,})/) ||
+              candidate.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/) ||
+              candidate.match(/shorts\/([A-Za-z0-9_-]{6,})/) ||
+              candidate.match(/embed\/([A-Za-z0-9_-]{6,})/) ||
+              candidate.match(/live\/([A-Za-z0-9_-]{6,})/);
     return m2 ? m2[1] : null;
   }
 
@@ -743,16 +758,36 @@
     return (str || '').toLowerCase().replace(/[\s_\-]/g, '');
   }
 
-  function detectCharacter(artist){
+  function detectCharacters(artist){
     var a = normalizeName(artist);
-    if(!a) return null;
+    if(!a) return [];
+    var found = [];
     for(var key in CHAR_ALIASES){
       var list = CHAR_ALIASES[key];
       for(var i = 0; i < list.length; i++){
-        if(a.indexOf(normalizeName(list[i])) !== -1) return key;
+        if(a.indexOf(normalizeName(list[i])) !== -1){
+          found.push(key);
+          break;
+        }
       }
     }
-    return null;
+    return found;
+  }
+
+  function blendHexColors(hexList){
+    if(hexList.length === 0) return null;
+    if(hexList.length === 1) return hexList[0];
+    var totalR = 0, totalG = 0, totalB = 0;
+    hexList.forEach(function(hex){
+      hex = hex.replace('#', '');
+      if(hex.length === 3){ hex = hex.split('').map(function(c){ return c + c; }).join(''); }
+      totalR += parseInt(hex.substr(0,2), 16);
+      totalG += parseInt(hex.substr(2,2), 16);
+      totalB += parseInt(hex.substr(4,2), 16);
+    });
+    var n = hexList.length;
+    function toHex(v){ var h = Math.round(v).toString(16); return h.length === 1 ? '0' + h : h; }
+    return '#' + toHex(totalR / n) + toHex(totalG / n) + toHex(totalB / n);
   }
 
   function hexToHsl(hex){
@@ -807,9 +842,12 @@
   }
 
   function updateThemeForArtist(artist){
-    var key = detectCharacter(artist);
-    if(key && CHAR_COLORS[key]){
-      applyThemeColor(CHAR_COLORS[key]);
+    var keys = detectCharacters(artist);
+    if(keys.length > 0){
+      var colors = keys.map(function(k){ return CHAR_COLORS[k]; });
+      var blended = blendHexColors(colors);
+      if(blended) applyThemeColor(blended);
+      else resetTheme();
     } else {
       resetTheme();
     }
@@ -863,11 +901,51 @@
     return n.trim();
   }
 
+  // 제목 속에 공동 작업(2인 이상) 흔적이 있으면 채널 아티스트와 합쳐서 보여준다.
+  // - "(feat. B)" / "(with B)" / "[Feat. B]" 형태
+  // - "A, B - 노래 제목" / "A & B - 노래 제목" / "A X B - 노래 제목" 형태
+  function extractCollabArtist(title, channelArtist){
+    var result = { title: title, artist: channelArtist };
+
+    var featRe = /[\(\[]\s*(?:feat\.?|ft\.?|with)\s+([^\)\]]+)[\)\]]/i;
+    var featMatch = title.match(featRe);
+    if(featMatch){
+      var other = featMatch[1].trim();
+      var cleanedTitle = title.replace(featMatch[0], '').replace(/\s{2,}/g, ' ').trim();
+      if(other && normalizeName(other) !== normalizeName(channelArtist)){
+        result.title = cleanedTitle;
+        result.artist = channelArtist + ' & ' + other;
+      }
+      return result;
+    }
+
+    var dashIdx = title.indexOf(' - ');
+    if(dashIdx > -1){
+      var left = title.slice(0, dashIdx).trim();
+      var right = title.slice(dashIdx + 3).trim();
+      var sepMatch = left.match(/^(.{1,40}?)\s*(,|&|[Xx]|×)\s*(.{1,40})$/);
+      if(sepMatch && right){
+        var a1 = sepMatch[1].trim();
+        var a2 = sepMatch[3].trim();
+        if(a1 && a2){
+          result.title = right;
+          result.artist = a1 + ' & ' + a2;
+        }
+      }
+    }
+
+    return result;
+  }
+
   function parseVideoMeta(rawTitle, channelName){
     // 유튜브 규칙: 영상 제목 = 노래 제목, 게시자(채널명) = 가수.
-    // 제목 안에서 가수 이름을 추측해 잘라내지 않고, 군더더기 표현만 제거한다.
+    // 다만 두 아티스트의 공동 작업(feat./with/콤마/& 등)이 뚜렷하면 두 이름 모두 표시한다.
     var artist = cleanChannelName(channelName || '') || '아티스트 미상';
     var title = cleanTitleText(rawTitle || '');
+
+    var collab = extractCollabArtist(title, artist);
+    title = collab.title || title;
+    artist = collab.artist || artist;
 
     return {
       title: title || rawTitle || '제목 없음',
@@ -885,6 +963,7 @@
       return parseVideoMeta(data.title, data.author_name);
     });
   }
+
 
   /* ---------- add flow ---------- */
   el.addForm.addEventListener('submit', function(e){
@@ -932,12 +1011,103 @@
       title: title,
       artist: artist,
       thumb: 'https://img.youtube.com/vi/' + id + '/mqdefault.jpg',
-      addedAt: new Date().toISOString()
+      addedAt: new Date().toISOString(),
+      duration: null
     };
     history.push(entry);
     saveHistory();
     renderHistory();
     playIndex(history.length - 1);
+    requestDurationFor(entry);
+  }
+
+  /* ---------- video length lookup ---------- */
+  // oEmbed 응답에는 영상 길이 정보가 없으므로, 눈에 보이지 않는 임시 플레이어를
+  // 하나 띄워 길이(getDuration)만 확인한 뒤 바로 정리한다.
+  var durationProbeHost = null;
+  function ensureDurationProbeHost(){
+    if(durationProbeHost) return durationProbeHost;
+    durationProbeHost = document.createElement('div');
+    durationProbeHost.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;left:-9999px;top:-9999px;';
+    document.body.appendChild(durationProbeHost);
+    return durationProbeHost;
+  }
+
+  function fetchDuration(id, callback){
+    if(ytApiFailed || typeof YT === 'undefined' || !YT.Player){
+      callback(null);
+      return;
+    }
+    var host = ensureDurationProbeHost();
+    var probeId = 'durationProbe_' + id + '_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    var div = document.createElement('div');
+    div.id = probeId;
+    host.appendChild(div);
+
+    var settled = false;
+    var probePlayer = null;
+
+    function cleanup(){
+      clearTimeout(safetyTimer);
+      try{ if(probePlayer && typeof probePlayer.destroy === 'function') probePlayer.destroy(); }catch(e){}
+      if(div.parentNode) div.parentNode.removeChild(div);
+    }
+    function finish(dur){
+      if(settled) return;
+      settled = true;
+      cleanup();
+      callback(dur);
+    }
+
+    var safetyTimer = setTimeout(function(){ finish(null); }, 8000);
+
+    try{
+      probePlayer = new YT.Player(probeId, {
+        videoId: id,
+        playerVars: { autoplay: 0, controls: 0, disablekb: 1, playsinline: 1 },
+        events: {
+          onReady: function(e){
+            var dur = (typeof e.target.getDuration === 'function') ? e.target.getDuration() : 0;
+            finish(dur > 0 ? dur : null);
+          },
+          onError: function(){ finish(null); }
+        }
+      });
+    }catch(e){
+      finish(null);
+    }
+  }
+
+  function requestDurationFor(entry){
+    if(!entry || entry.duration) return;
+    if(ytApiFailed){ return; }
+    if(!ytApiReady){
+      // API가 아직 준비되지 않았으면 잠시 기다렸다가 재시도
+      var tries = 0;
+      var waiter = setInterval(function(){
+        tries++;
+        if(ytApiReady){
+          clearInterval(waiter);
+          requestDurationFor(entry);
+        } else if(ytApiFailed || tries > 25){
+          clearInterval(waiter);
+        }
+      }, 200);
+      return;
+    }
+    fetchDuration(entry.id, function(dur){
+      if(dur){
+        entry.duration = dur;
+        saveHistory();
+        renderHistory();
+      }
+    });
+  }
+
+  function backfillMissingDurations(){
+    history.forEach(function(entry){
+      requestDurationFor(entry);
+    });
   }
 
   /* ---------- reorder / delete ---------- */
@@ -1024,9 +1194,6 @@
         var entry = history[i];
         var li = document.createElement('li');
         li.className = 'history-item' + (i === currentIndex ? ' active' : '');
-        var d = new Date(entry.addedAt);
-        var hh = ('0' + d.getHours()).slice(-2);
-        var mm = ('0' + d.getMinutes()).slice(-2);
         li.innerHTML =
           '<img src="' + entry.thumb + '" alt="">' +
           '<div class="history-text">' +
@@ -1041,7 +1208,8 @@
             '<button type="button" class="history-delete" aria-label="삭제">✕</button>' +
           '</div>';
         li.querySelector('.history-title').textContent = entry.title;
-        li.querySelector('.history-sub').textContent = entry.artist + ' · ' + hh + ':' + mm;
+        var durationText = entry.duration ? fmtTime(entry.duration) : '재생 시간 확인 중';
+        li.querySelector('.history-sub').textContent = entry.artist + ' · ' + durationText;
 
         var moveUpBtn = li.querySelector('.move-up');
         var moveDownBtn = li.querySelector('.move-down');
@@ -1179,7 +1347,10 @@
   }
 
   /* ---------- YouTube IFrame API bootstrap ---------- */
-  window.onYouTubeIframeAPIReady = function(){ ytApiReady = true; };
+  window.onYouTubeIframeAPIReady = function(){
+    ytApiReady = true;
+    backfillMissingDurations();
+  };
 
   (function loadYT(){
     try{
